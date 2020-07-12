@@ -8,6 +8,7 @@ pipeline {
     parameters {
         string(name: 'DISPLAY_NAME', defaultValue: '', description: 'Setup a specific build display name')
         string(name: 'BUILD_BRANCH_NAME', defaultValue: 'master', description: 'Which branch to build? Set if you are not on a multibranch pipeline.')
+        string(name: 'GIT_AUTHOR', defaultValue: 'kiegroup', description: 'Which Git author repository ?')
         booleanParam(name: 'RELEASE', defaultValue: false, description: 'Is this build for a release?')
         string(name: 'PROJECT_VERSION', defaultValue: '', description: 'Optional if not RELEASE. If RELEASE, cannot be empty.')
     }
@@ -47,17 +48,21 @@ pipeline {
         stage('Clone repositories') { 
             steps {
                 dir("kogito-runtimes") {
-                    checkout(githubscm.resolveRepository("kogito-runtimes", "kiegroup", env.BRANCH_NAME, false))
+                    checkout(githubscm.resolveRepository("kogito-runtimes", params.GIT_AUTHOR, env.BRANCH_NAME, false))
                 }
                 dir("kogito-apps") {
-                    checkout(githubscm.resolveRepository("kogito-apps", "kiegroup", env.BRANCH_NAME, false))
+                    checkout(githubscm.resolveRepository("kogito-apps", params.GIT_AUTHOR, env.BRANCH_NAME, false))
                 }
                 dir("kogito-examples") {
-                    checkout(githubscm.resolveRepository("kogito-examples", "kiegroup", env.BRANCH_NAME, false))
+                    checkout(githubscm.resolveRepository("kogito-examples", params.GIT_AUTHOR, env.BRANCH_NAME, false))
                 }
                 // Use a separate dir for persistence to not overwrite the test results
                 dir("kogito-examples-persistence") {
-                    checkout(githubscm.resolveRepository("kogito-examples", "kiegroup", env.BRANCH_NAME, false))
+                    checkout(githubscm.resolveRepository("kogito-examples", params.GIT_AUTHOR, env.BRANCH_NAME, false))
+                }
+                // Use a separate dir for events to not overwrite the test results
+                dir("kogito-examples-events") {
+                    checkout(githubscm.resolveRepository("kogito-examples", params.GIT_AUTHOR, env.BRANCH_NAME, false))
                 }
             }
         }
@@ -95,6 +100,7 @@ pipeline {
                 dir("kogito-runtimes") {
                     script {
                         maven.mvnVersionsSet(getProjectVersion())
+                        // Step needed to have runtimes artifacts into the local repository, in order to set apps version correctly
                         sh "mvn -B clean install -DskipTests"
                     }
                 }
@@ -173,8 +179,6 @@ pipeline {
         }
         stage('Build kogito-examples with events') {
             steps {
-                // Use a separate dir for events to not overwrite the test results
-                checkout([$class: 'GitSCM', branches: [[name: env.BRANCH_NAME]], browser: [$class: 'GithubWeb', repoUrl: 'git@github.com:kiegroup/kogito-examples.git'], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'kogito-examples-events']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'kie-ci-user-key', url: 'git@github.com:kiegroup/kogito-examples.git']]])
                 dir("kogito-examples-events") {
                     script {
                         maven.runMavenWithSubmarineSettings('clean install -Pevents', false)
