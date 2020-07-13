@@ -1,3 +1,4 @@
+import org.jenkinsci.plugins.workflow.libs.Library
 @Library('jenkins-pipeline-shared-libraries')_
 
 deployProperties = [:]
@@ -57,6 +58,12 @@ pipeline {
             when {
                 expression {
                     return isRelease() && getDeployProperty('kogito-runtimes.pr.link') != ''
+                }
+            }
+            steps{
+                dir("kogito-runtimes") {
+                    checkoutRepo("kogito-runtimes")
+                    mergeAndPush("kogito-runtimes")
                 }
             }
         }
