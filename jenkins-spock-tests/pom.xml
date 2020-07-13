@@ -2,11 +2,15 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.kie.kogito</groupId>
+        <artifactId>kogito-runtimes</artifactId>
+        <version>8.0.0-SNAPSHOT</version>
+    </parent>
     <groupId>org.kie</groupId>
-    <artifactId>jenkins-pipeline-shared-libraries</artifactId>
-    <packaging>jar</packaging>
-    <version>1.0.0</version>
-    <description>Jenkins Pipeline Shared Libraries Testing Project</description>
+    <artifactId>jenkins-spock-tests</artifactId>
+    <name>Kogito :: Jenkins Spock Tests</name>
+    <packaging>pom</packaging>
 
     <repositories>
         <repository>
@@ -241,17 +245,17 @@
                             </goals>
                             <configuration>
                                 <configScript>config.groovy</configScript>
-                                <sources>
+                                <!-- <sources>
                                     <source>
                                         <directory>vars</directory>
                                         <includes>
                                             <include>**/*.groovy</include>
                                         </includes>
                                     </source>
-                                </sources>
+                                </sources> -->
                                 <testSources>
                                     <testSource>
-                                        <directory>test</directory>
+                                        <directory>src/test</directory>
                                         <includes>
                                             <include>**/*.groovy</include>
                                         </includes>
@@ -275,19 +279,22 @@
         </plugins>
         <sourceDirectory>vars</sourceDirectory>
         <testResources>
-            <testResource>
+            <!-- <testResource>
                 <includes>
                     <include>vars/**/*.groovy</include>
                     <include>Jenkinsfile.*</include>
                 </includes>
                 <directory>${project.basedir}</directory>
-            </testResource>
+            </testResource> -->
             <testResource>
-                <directory>test/resources</directory>
+                <directory>src/test/resources</directory>
+                <includes>
+                    <include>Jenkinsfile.*</include>
+                </includes>
             </testResource>
-            <testResource>
+            <!-- <testResource>
                 <directory>resources</directory>
-            </testResource>
+            </testResource> -->
         </testResources>
     </build>
 </project>
