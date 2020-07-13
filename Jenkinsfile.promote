@@ -170,7 +170,7 @@ pipeline {
 //////////////////////////////////////////////////////////////////////////////
 
 void readDeployProperties(){
-    if (params.DEPLOY_BUILD_URL != null){
+    if (params.DEPLOY_BUILD_URL != ''){
         sh "wget ${params.DEPLOY_BUILD_URL}artifact/${PROPERTIES_FILE_NAME}"
         deployProperties = readProperties file: PROPERTIES_FILE_NAME
         // echo all properties

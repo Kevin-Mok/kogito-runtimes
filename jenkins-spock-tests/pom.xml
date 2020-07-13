@@ -10,7 +10,7 @@
     <groupId>org.kie</groupId>
     <artifactId>jenkins-spock-tests</artifactId>
     <name>Kogito :: Jenkins Spock Tests</name>
-    <packaging>pom</packaging>
+    <packaging>jar</packaging>
 
     <repositories>
         <repository>

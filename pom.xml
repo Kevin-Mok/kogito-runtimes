@@ -230,6 +230,7 @@
   </developers>
 
   <modules>
+    <module>jenkins-spock-tests</module>
     <module>bom</module>
     <module>api</module>
     <module>drools</module>
@@ -243,7 +244,6 @@
     <module>archetypes</module>
     <module>grafana-api</module>
     <module>integration-tests</module>
-    <module>jenkins-spock-tests</module>
   </modules>
 
   <dependencyManagement>
