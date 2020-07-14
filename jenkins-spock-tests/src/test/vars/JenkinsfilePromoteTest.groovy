@@ -1,6 +1,6 @@
 import com.homeaway.devtools.jenkins.testing.JenkinsPipelineSpecification
 
-class JenkinsfilePromote extends JenkinsPipelineSpecification {
+class JenkinsfilePromoteTest extends JenkinsPipelineSpecification {
 	def Jenkinsfile = null
 
     def setup() {

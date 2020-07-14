@@ -43,6 +43,7 @@
     <!--suppress UnresolvedMavenProperty -->
     <project.root.dir>${maven.multiModuleProjectDirectory}</project.root.dir>
     <tests.surefire.include>**/*Test.java</tests.surefire.include>
+    <tests.surefire.include.groovy>**/*Test.groovy</tests.surefire.include.groovy>
     <tests.failsafe.include>**/*IT.java</tests.failsafe.include>
 
     <!-- plugin versions -->
@@ -1088,6 +1089,7 @@
             </includes>
             <excludes>
               <exclude>${tests.surefire.include}</exclude>
+              <exclude>${tests.surefire.include.groovy}</exclude>
             </excludes>
           </configuration>
         </plugin>
@@ -1098,6 +1100,7 @@
           <configuration>
             <includes>
               <include>${tests.surefire.include}</include>
+              <include>${tests.surefire.include.groovy}</include>
             </includes>
             <excludes>
               <exclude>${tests.failsafe.include}</exclude>
@@ -1325,6 +1328,36 @@
           <groupId>org.jsonschema2pojo</groupId>
           <artifactId>jsonschema2pojo-maven-plugin</artifactId>
           <version>${version.jsonschema2pojo-maven-plugin}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.gmavenplus</groupId>
+          <artifactId>gmavenplus-plugin</artifactId>
+          <version>${groovy.gmaven.pluginVersion}</version>
+          <executions>
+            <execution>
+              <id>groovy</id>
+              <goals>
+                <goal>addSources</goal>
+                <goal>addTestSources</goal>
+                <goal>generateStubs</goal>
+                <goal>generateTestStubs</goal>
+                <goal>compile</goal>
+                <goal>compileTests</goal>
+                <goal>removeStubs</goal>
+                <goal>removeTestStubs</goal>
+              </goals>
+              <configuration>
+                <testSources>
+                  <testSource>
+                    <directory>jenkins-spock-tests/src/test</directory>
+                    <includes>
+                      <include>**/*.groovy</include>
+                    </includes>
+                  </testSource>
+                </testSources>
+              </configuration>
+            </execution>
+          </executions>
         </plugin>
       </plugins>
     </pluginManagement>
