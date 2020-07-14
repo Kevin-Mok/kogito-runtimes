@@ -245,14 +245,6 @@
                             </goals>
                             <configuration>
                                 <configScript>config.groovy</configScript>
-                                <!-- <sources>
-                                    <source>
-                                        <directory>vars</directory>
-                                        <includes>
-                                            <include>**/*.groovy</include>
-                                        </includes>
-                                    </source>
-                                </sources> -->
                                 <testSources>
                                     <testSource>
                                         <directory>src/test</directory>
@@ -279,22 +271,12 @@
         </plugins>
         <sourceDirectory>vars</sourceDirectory>
         <testResources>
-            <!-- <testResource>
-                <includes>
-                    <include>vars/**/*.groovy</include>
-                    <include>Jenkinsfile.*</include>
-                </includes>
-                <directory>${project.basedir}</directory>
-            </testResource> -->
             <testResource>
                 <directory>src/test/resources</directory>
                 <includes>
                     <include>Jenkinsfile.*</include>
                 </includes>
             </testResource>
-            <!-- <testResource>
-                <directory>resources</directory>
-            </testResource> -->
         </testResources>
     </build>
 </project>

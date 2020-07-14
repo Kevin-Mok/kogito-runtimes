@@ -18,7 +18,7 @@ class JenkinsfilePromote extends JenkinsPipelineSpecification {
 		when:
 			Jenkinsfile.readDeployProperties()
 		then:
-			0 * getPipelineMock("sh")("wget artifact/deployment.properties")
+			0 * getPipelineMock("sh")("wget artifact/deployment.properties -O deployment.properties")
             0 * getPipelineMock("readProperties").call(['file':'deployment.properties'])
 	}
 
@@ -28,7 +28,7 @@ class JenkinsfilePromote extends JenkinsPipelineSpecification {
 		when:
 			Jenkinsfile.readDeployProperties()
 		then:
-			1 * getPipelineMock("sh")("wget https://www.google.ca/artifact/deployment.properties")
+			1 * getPipelineMock("sh")("wget https://www.google.ca/artifact/deployment.properties -O deployment.properties")
             1 * getPipelineMock("readProperties").call(['file':'deployment.properties'])
 	}
 

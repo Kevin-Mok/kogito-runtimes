@@ -114,11 +114,6 @@ pipeline {
                         maven.mvnVersionsSet(getProjectVersion())
                     }
                 }
-                dir("kogito-examples-persistence") {
-                    script {
-                        maven.mvnVersionsSet(getProjectVersion())
-                    }
-                }
             }
         }
         stage('Build kogito-runtimes') {

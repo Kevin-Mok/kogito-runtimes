@@ -54,20 +54,23 @@ pipeline {
                 }
             }
         }
-        stage('Merge runtimes deploy PR') {
+        stage('Merge runtimes deploy PR and tag') {
             when {
                 expression {
-                    return isRelease() && getDeployProperty('kogito-runtimes.pr.link') != ''
+                    return isRelease() &&
+                           getDeployProperty('kogito-runtimes.pr.link') != '' &&
+                           getGitTag() != ''
                 }
             }
             steps{
                 dir("kogito-runtimes") {
                     checkoutRepo("kogito-runtimes")
                     mergeAndPush("kogito-runtimes")
+                    tagLatest()
                 }
             }
         }
-        stage('Merge apps deploy PR') {
+        stage('Merge apps deploy PR and tag') {
             when {
                 expression {
                     return isRelease() && getDeployProperty('kogito-apps.pr.link') != ''
@@ -77,10 +80,11 @@ pipeline {
                 dir("kogito-apps") {
                     checkoutRepo("kogito-apps")
                     mergeAndPush("kogito-apps")
+                    tagLatest()
                 }
             }
         }
-        stage('Merge examples deploy PR') {
+        stage('Merge examples deploy PR and tag') {
             when {
                 expression {
                     return isRelease() && getDeployProperty('kogito-examples.pr.link') != ''
@@ -90,22 +94,7 @@ pipeline {
                 dir("kogito-examples") {
                     checkoutRepo("kogito-examples")
                     mergeAndPush("kogito-examples")
-                }
-            }
-        }
-        stage('Git tag') {
-            when {
-                expression { return getGitTag() != "" }
-            }
-            steps {
-                dir("kogito-runtimes") {
-                    tagLatest("kogito-runtimes")
-                }
-                dir("kogito-apps") {
-                    tagLatest("kogito-apps")
-                }
-                dir("kogito-examples") {
-                    tagLatest("kogito-examples")
+                    tagLatest()
                 }
             }
         }
@@ -115,15 +104,17 @@ pipeline {
             }
             steps {
                 dir("kogito-runtimes-bot") {
-                    prepareForPR()
+                    prepareForPR("kogito-runtimes")
                     maven.mvnVersionsSet(getSnapshotVersion())
                     // Step needed to have runtimes artifacts into the local repository, in order to set apps version correctly
                     sh "mvn -B clean install -DskipTests"
                     commitAndCreatePR("kogito-runtimes")
                 }
                 dir("kogito-runtimes") {
-                    if (getDeployProperty('kogito-runtimes.pr.link') != ''){
-                        mergeAndPush("kogito-runtimes")
+                    script {
+                        if (getDeployProperty('kogito-runtimes.pr.link') != ''){
+                            mergeAndPush("kogito-runtimes")
+                        }
                     }
                 }
             }
@@ -134,13 +125,15 @@ pipeline {
             }
             steps {
                 dir("kogito-apps-bot") {
-                    prepareForPR()
+                    prepareForPR("kogito-apps")
                     maven.mvnVersionsUpdateParentAndChildModules(getSnapshotVersion())
                     commitAndCreatePR("kogito-apps")
                 }
                 dir("kogito-apps") {
-                    if (getDeployProperty('kogito-apps.pr.link') != ''){
-                        mergeAndPush("kogito-apps")
+                    script {
+                        if (getDeployProperty('kogito-apps.pr.link') != ''){
+                            mergeAndPush("kogito-apps")
+                        }
                     }
                 }
             }
@@ -151,13 +144,15 @@ pipeline {
             }
             steps {
                 dir("kogito-examples-bot") {
-                    prepareForPR()
+                    prepareForPR("kogito-examples")
                     maven.mvnVersionsSet(getSnapshotVersion())
                     commitAndCreatePR("kogito-examples")
                 }
                 dir("kogito-examples") {
-                    if (getDeployProperty('kogito-examples.pr.link') != ''){
-                        mergeAndPush("kogito-examples")
+                    script {
+                        if (getDeployProperty('kogito-examples.pr.link') != ''){
+                            mergeAndPush("kogito-examples")
+                        }
                     }
                 }
             }
@@ -171,7 +166,7 @@ pipeline {
 
 void readDeployProperties(){
     if (params.DEPLOY_BUILD_URL != ''){
-        sh "wget ${params.DEPLOY_BUILD_URL}artifact/${PROPERTIES_FILE_NAME}"
+        sh "wget ${params.DEPLOY_BUILD_URL}artifact/${PROPERTIES_FILE_NAME} -O ${PROPERTIES_FILE_NAME}"
         deployProperties = readProperties file: PROPERTIES_FILE_NAME
         // echo all properties
         echo deployProperties.collect{ entry -> "${entry.key}=${entry.value}" }.join("\n")
@@ -238,13 +233,13 @@ void mergeAndPush(String repo) {
     githubscm.pushObject("origin", getBuildBranch())
 }
 
-void tagLatest(String repo) {
-    githubscm.tagRepository(getGitTag(), BUILD_TAG)
-    githubscm.pushObject("origin", getGitTag())
+void tagLatest() {
+    githubscm.tagRepository(getGitTag(), env.BUILD_TAG)
+    githubscm.pushObject("origin", "--tags ${getGitTag()}")
 }
 
-void prepareForPR() {
-    checkout(githubscm.resolveRepository(repo, env.BOT_CREDENTIALS_ID, getBuildBranch(), false))
+void prepareForPR(String repo) {
+    checkout(githubscm.resolveRepository(repo, getGitAuthor(), getBuildBranch(), false))
     githubscm.forkRepo(env.BOT_CREDENTIALS_ID)
     githubscm.createBranch(getSnapshotVersion())
 }
