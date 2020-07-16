@@ -57,9 +57,7 @@ pipeline {
         }
         stage('Merge runtimes deploy PR and tag') {
             when {
-                expression {
-                    return isRelease() && getDeployProperty('kogito-runtimes.pr.link') != ''
-                }
+                expression { return isRelease() }
             }
             steps{
                 dir("kogito-runtimes") {
@@ -71,9 +69,7 @@ pipeline {
         }
         stage('Merge apps deploy PR and tag') {
             when {
-                expression {
-                    return isRelease() && getDeployProperty('kogito-apps.pr.link') != ''
-                }
+                expression { return isRelease() }
             }
             steps{
                 dir("kogito-apps") {
@@ -85,15 +81,20 @@ pipeline {
         }
         stage('Merge examples deploy PR and tag') {
             when {
-                expression {
-                    return isRelease() && getDeployProperty('kogito-examples.pr.link') != ''
-                }
+                expression { return isRelease() }
             }
             steps{
                 dir("kogito-examples") {
                     checkoutRepo("kogito-examples")
                     mergeAndPush("kogito-examples")
                     tagLatest()
+
+                    // update stable branch to tagged commit
+                    githubscm.createBranch("stable")
+                    withCredentials([usernamePassword(credentialsId: "kie-ci", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        sh("git config --local credential.helper \"!f() { echo username=\\$GIT_USERNAME; echo password=\\$GIT_PASSWORD; }; f\"")
+                        sh("git push --force origin stable")
+                    }
                 }
             }
         }
@@ -110,11 +111,7 @@ pipeline {
                     commitAndCreatePR("kogito-runtimes")
                 }
                 dir("kogito-runtimes") {
-                    script {
-                        if (getDeployProperty('kogito-runtimes.pr.link') != ''){
-                            mergeAndPush("kogito-runtimes")
-                        }
-                    }
+                    mergeAndPush("kogito-runtimes")
                 }
             }
         }
@@ -129,11 +126,7 @@ pipeline {
                     commitAndCreatePR("kogito-apps")
                 }
                 dir("kogito-apps") {
-                    script {
-                        if (getDeployProperty('kogito-apps.pr.link') != ''){
-                            mergeAndPush("kogito-apps")
-                        }
-                    }
+                    mergeAndPush("kogito-apps")
                 }
             }
         }
@@ -148,11 +141,7 @@ pipeline {
                     commitAndCreatePR("kogito-examples")
                 }
                 dir("kogito-examples") {
-                    script {
-                        if (getDeployProperty('kogito-examples.pr.link') != ''){
-                            mergeAndPush("kogito-examples")
-                        }
-                    }
+                    mergeAndPush("kogito-examples")
                 }
             }
         }
@@ -224,17 +213,22 @@ String getGitAuthor() {
 
 void checkoutRepo(String repo) {
     checkout(githubscm.resolveRepository(repo, getGitAuthor(), getBuildBranch(), false))
+    // need to manually checkout branch since on a detached branch after checkout command
     sh "git checkout ${getBuildBranch()}"
 }
 
 void mergeAndPush(String repo) {
-    githubscm.mergePR(getDeployProperty("${repo}.pr.link"))
-    githubscm.pushObject("origin", getBuildBranch())
+    if (getDeployProperty("${repo}.pr.link") != '') {
+        githubscm.mergePR(getDeployProperty("${repo}.pr.link"))
+        githubscm.pushObject("origin", getBuildBranch())
+    }
 }
 
 void tagLatest() {
-    githubscm.tagRepository(getGitTag(), env.BUILD_TAG)
-    githubscm.pushObject("origin", "--tags ${getGitTag()}")
+    if (getGitTag() != '') {
+        githubscm.tagRepository(getGitTag(), env.BUILD_TAG)
+        githubscm.pushObject("origin", "--tags ${getGitTag()}")
+    }
 }
 
 void prepareForPR(String repo) {
