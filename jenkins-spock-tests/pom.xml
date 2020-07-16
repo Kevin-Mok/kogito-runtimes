@@ -244,10 +244,9 @@
                                 <goal>removeTestStubs</goal>
                             </goals>
                             <configuration>
-                                <configScript>config.groovy</configScript>
                                 <testSources>
                                     <testSource>
-                                        <directory>src/test</directory>
+                                        <directory>${project.basedir}/src/test/vars</directory>
                                         <includes>
                                             <include>**/*.groovy</include>
                                         </includes>
@@ -269,10 +268,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
             </plugin>
         </plugins>
-        <sourceDirectory>vars</sourceDirectory>
         <testResources>
             <testResource>
-                <directory>src/test/resources</directory>
+                <directory>${project.basedir}</directory>
                 <includes>
                     <include>Jenkinsfile.*</include>
                 </includes>

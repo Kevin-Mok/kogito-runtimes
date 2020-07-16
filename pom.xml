@@ -798,8 +798,7 @@
         <groupId>io.rest-assured</groupId>
         <artifactId>json-schema-validator</artifactId>
         <version>${version.io.restassured}</version>
-    </dependency>
-      
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
