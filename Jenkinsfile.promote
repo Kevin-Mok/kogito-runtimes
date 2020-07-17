@@ -46,7 +46,7 @@ pipeline {
                     def pipelineName = "Kogito Runtimes promote pipeline"
                     withCredentials([string(credentialsId: "KOGITO_CI_EMAIL_TO", variable: 'ZULIP_EMAIL')]) {
                         emailext body: "${getProjectVersion()} artifacts are ready for promotion.\n" +
-                                 "The staging repository can be found at: ${getParamOrDeployProperty('STAGING_REPO_URL', 'staging-repo.url')\n" +
+                                 "The staging repository can be found at: ${getParamOrDeployProperty('STAGING_REPO_URL', 'staging-repo.url')}\n" +
                                  "Please confirm that the staging repository has been promoted here: ${env.BUILD_URL}input",
                                  subject: "Release #${getBuildBranch()}",
                                  to: ZULIP_EMAIL
@@ -263,3 +263,5 @@ void commitAndCreatePR(String repo) {
     deployProperties["${repo}.pr.link"] = githubscm.createPR(commitMsg, prBody, getBuildBranch(), env.BOT_CREDENTIALS_ID)
 }
 
+// TODO: write helper function to change default branch
+// gh api -XPATCH "repos/Kevin-Mok-Bot/jenkins-test" -f default_branch="master"|jq '.default_branch'
