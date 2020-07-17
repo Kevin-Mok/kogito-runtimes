@@ -21,6 +21,10 @@ pipeline {
         string(name: 'PROJECT_VERSION', defaultValue: '', description: 'Override `deployment.properties`. Optional if not RELEASE. If RELEASE, cannot be empty.')
         string(name: 'GIT_TAG', defaultValue: '', description: 'Git tag to set, if different from PROJECT_VERSION')
     }
+    options {
+        buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '5')
+        timeout(time: 120, unit: 'MINUTES')
+    }
     stages {
         stage('Initialization') {
             steps {
@@ -46,7 +50,7 @@ pipeline {
                     def pipelineName = "Kogito Runtimes promote pipeline"
                     withCredentials([string(credentialsId: "KOGITO_CI_EMAIL_TO", variable: 'ZULIP_EMAIL')]) {
                         emailext body: "${getProjectVersion()} artifacts are ready for promotion.\n" +
-                                 "The staging repository can be found at: ${getParamOrDeployProperty('STAGING_REPO_URL', 'staging-repo.url')\n" +
+                                 "The staging repository can be found at: ${getParamOrDeployProperty('STAGING_REPO_URL', 'staging-repo.url')}\n" +
                                  "Please confirm that the staging repository has been promoted here: ${env.BUILD_URL}input",
                                  subject: "Release #${getBuildBranch()}",
                                  to: ZULIP_EMAIL
@@ -84,6 +88,7 @@ pipeline {
                 expression { return isRelease() }
             }
             steps{
+                installGithubCLI()
                 dir("kogito-examples") {
                     checkoutRepo("kogito-examples")
                     mergeAndPush("kogito-examples")
@@ -91,10 +96,7 @@ pipeline {
 
                     // update stable branch to tagged commit
                     githubscm.createBranch("stable")
-                    withCredentials([usernamePassword(credentialsId: "kie-ci", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
-                        sh("git config --local credential.helper \"!f() { echo username=\\$GIT_USERNAME; echo password=\\$GIT_PASSWORD; }; f\"")
-                        sh("git push --force origin stable")
-                    }
+                    forcePushProtectedBranch("kogito-examples", "stable", "master")
                 }
             }
         }
@@ -263,3 +265,35 @@ void commitAndCreatePR(String repo) {
     deployProperties["${repo}.pr.link"] = githubscm.createPR(commitMsg, prBody, getBuildBranch(), env.BOT_CREDENTIALS_ID)
 }
 
+void installGithubCLI() {
+    sh """
+    wget https://github.com/cli/cli/releases/download/v0.11.0/gh_0.11.0_linux_amd64.tar.gz
+    tar xzf gh_0.11.0_linux_amd64.tar.gz
+    mv gh_0.11.0_linux_amd64/bin/gh .
+    rm -r gh_0.11.0_linux_amd64*
+    """
+}
+
+void setDefaultBranch(String repo, String defaultBranch) {
+    withCredentials([usernamePassword(credentialsId: "kie-ci", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GITHUB_TOKEN')]) {
+        // gh command from https://github.com/cli/cli/issues/929#issuecomment-629253585
+        def newDefaultBranch = sh(script: "../gh api -XPATCH 'repos/kiegroup/${repo}' -f default_branch=${defaultBranch} | jq '.default_branch'", returnStdout: true).trim()
+        if (newDefaultBranch == "\"${defaultBranch}\"") {
+            echo "[INFO] kiegroup/${repo}'s default branch has been updated to ${newDefaultBranch}."
+        } else {
+            error "Couldn't update default branch."
+        }
+    }
+}
+
+void forcePushProtectedBranch(String repo, String defaultBranch, String tempBranch) {
+    setDefaultBranch(repo, tempBranch)
+    withCredentials([usernamePassword(credentialsId: "kie-ci", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+        sh """
+        git config --local credential.helper \"!f() { echo username=\\$GIT_USERNAME; echo password=\\$GIT_PASSWORD; }; f\"
+        git push --delete origin ${defaultBranch}
+        git push origin ${defaultBranch}
+        """
+    }
+    setDefaultBranch(repo, defaultBranch)
+}

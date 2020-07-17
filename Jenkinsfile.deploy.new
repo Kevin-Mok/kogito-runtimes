@@ -47,23 +47,11 @@ pipeline {
         }
         stage('Clone repositories') { 
             steps {
-                dir("kogito-runtimes") {
-                    checkout(githubscm.resolveRepository("kogito-runtimes", params.GIT_AUTHOR, env.BRANCH_NAME, false))
-                }
-                dir("kogito-apps") {
-                    checkout(githubscm.resolveRepository("kogito-apps", params.GIT_AUTHOR, env.BRANCH_NAME, false))
-                }
-                dir("kogito-examples") {
-                    checkout(githubscm.resolveRepository("kogito-examples", params.GIT_AUTHOR, env.BRANCH_NAME, false))
-                }
-                // Use a separate dir for persistence to not overwrite the test results
-                dir("kogito-examples-persistence") {
-                    checkout(githubscm.resolveRepository("kogito-examples", params.GIT_AUTHOR, env.BRANCH_NAME, false))
-                }
-                // Use a separate dir for events to not overwrite the test results
-                dir("kogito-examples-events") {
-                    checkout(githubscm.resolveRepository("kogito-examples", params.GIT_AUTHOR, env.BRANCH_NAME, false))
-                }
+                cloneRepo("kogito-runtimes")
+                cloneRepo("kogito-apps")
+                cloneRepo("kogito-examples")
+                cloneRepo("kogito-examples", "kogito-examples-persistence")
+                cloneRepo("kogito-examples", "kogito-examples-events")
             }
         }
         stage('Prepare for PR'){
@@ -71,15 +59,9 @@ pipeline {
                 expression { return isRelease() }
             }
             steps {
-                dir("kogito-runtimes") {
-                    prepareForPR()
-                }
-                dir("kogito-apps") {
-                    prepareForPR()
-                }
-                dir("kogito-examples") {
-                    prepareForPR()
-                }
+                prepareForPR("kogito-runtimes")
+                prepareForPR("kogito-apps")
+                prepareForPR("kogito-examples")
             }
         }
         stage('Setup Maven release config'){
@@ -118,11 +100,7 @@ pipeline {
         }
         stage('Build kogito-runtimes') {
             steps {
-                dir("kogito-runtimes") {
-                    script {
-                        maven.runMavenWithSubmarineSettings('clean install', false)
-                    }
-                }
+                mavenInstall("kogito-runtimes")
             }
             post {
                 always {
@@ -132,11 +110,7 @@ pipeline {
         }
         stage('Build kogito-apps') {
             steps {
-                dir("kogito-apps") {
-                    script {
-                        maven.runMavenWithSubmarineSettings('clean install', false)
-                    }
-                }
+                mavenInstall("kogito-runtimes")
             }
             post {
                 always {
@@ -146,11 +120,7 @@ pipeline {
         }
         stage('Build kogito-examples') {
             steps {
-                dir("kogito-examples") {
-                    script {
-                        maven.runMavenWithSubmarineSettings('clean install', false)
-                    }
-                }
+                mavenInstall("kogito-runtimes")
             }
             post {
                 always {
@@ -186,45 +156,11 @@ pipeline {
                 }
             }
         }
-        stage('Create PR'){
-            when {
-                expression { return isRelease() }
-            }
-            steps {
-                dir("kogito-runtimes") {
-                    script {
-                        commitAndCreatePR("kogito-runtimes")
-                    }
-                }
-                dir("kogito-apps") {
-                    script {
-                        commitAndCreatePR("kogito-apps")
-                    }
-                }
-                dir("kogito-examples") {
-                    script {
-                        commitAndCreatePR("kogito-examples")
-                    }
-                }
-            }
-        }
         stage('Deploy artifacts') {
             steps {
-                dir("kogito-runtimes") {
-                    script {
-                        maven.runMavenWithSubmarineSettings('clean deploy', true)
-                    }
-                }
-                dir("kogito-apps") {
-                    script {
-                        maven.runMavenWithSubmarineSettings('clean deploy', true)
-                    }
-                }
-                dir("kogito-examples") {
-                    script {
-                        maven.runMavenWithSubmarineSettings('clean deploy', true)
-                    }
-                }
+                mavenDeploy("kogito-runtimes")
+                mavenDeploy("kogito-apps")
+                mavenDeploy("kogito-examples")
             }
         }
         stage('Get staging repository URL') {
@@ -241,6 +177,16 @@ pipeline {
                     }
                     deployProperties["staging-repo.url"] = input(message: "Enter staging repository URL:", parameters: [string(name: 'STAGING_REPO_URL')])
                 }
+            }
+        }
+        stage('Create PR'){
+            when {
+                expression { return isRelease() }
+            }
+            steps {
+                commitAndCreatePR("kogito-runtimes")
+                commitAndCreatePR("kogito-apps")
+                commitAndCreatePR("kogito-examples")
             }
         }
     }
@@ -260,9 +206,17 @@ void saveReports(boolean allowEmpty=false){
     junit testResults: '**/target/surefire-reports/**/*.xml, **/target/failsafe-reports/**/*.xml', allowEmptyResults: allowEmpty
 }
 
-void prepareForPR() {
-    githubscm.forkRepo(env.BOT_CREDENTIALS_ID)
-    githubscm.createBranch(getProjectVersion())
+void cloneRepo(String repo, String dirName=repo) {
+    dir(dirName) {
+        checkout(githubscm.resolveRepository(repo, getGitAuthor(), getBuildBranch(), false))
+    }
+}
+
+void prepareForPR(String repo) {
+    dir(repo) {
+        githubscm.forkRepo(env.BOT_CREDENTIALS_ID)
+        githubscm.createBranch(getProjectVersion())
+    }
 }
 
 void addNotIgnoredPoms() {
@@ -285,14 +239,20 @@ void commitAndCreatePR(String repo) {
     def prBody = "Generated by build ${BUILD_TAG}: ${BUILD_URL}"
     // Not using githubscm.commitChanges() because globbing won't work.
     // See: https://github.com/kiegroup/kogito-runtimes/pull/570#discussion_r449268738
-    addNotIgnoredPoms()
-    sh "git commit -m '${commitMsg}'"
-    githubscm.pushObject("origin", getProjectVersion(), env.BOT_CREDENTIALS_ID)
-    deployProperties["${repo}.pr.link"] = githubscm.createPR(commitMsg, prBody, getBuildBranch(), env.BOT_CREDENTIALS_ID)
+    dir(repo) {
+        addNotIgnoredPoms()
+        sh "git commit -m '${commitMsg}'"
+        githubscm.pushObject("origin", getProjectVersion(), env.BOT_CREDENTIALS_ID)
+        deployProperties["${repo}.pr.link"] = githubscm.createPR(commitMsg, prBody, getBuildBranch(), env.BOT_CREDENTIALS_ID)
+    }
 }
 
 boolean isRelease() {
     return params.RELEASE
+}
+
+String getGitAuthor(){
+    return params.GIT_AUTHOR
 }
 
 String getBuildBranch(){
@@ -308,3 +268,24 @@ void setDeployPropertyIfNeeded(String key, def value){
         deployProperties[key] = value
     }
 }
+
+void mavenInstall(String directory, boolean skipTests = false, String... profiles) {
+    installCmd = 'clean install'
+    if(profiles.length > 0){
+        installCmd += " -P${profiles.join(',')}"
+    }
+    dir(directory) {
+        maven.runMavenWithSubmarineSettings(installCmd, skipTests)
+    }
+}
+
+void mavenDeploy(String directory) {
+    deployCmd = 'clean deploy'
+    if(params.MAVEN_DEPLOY_REPOSITORY != ''){
+        deployCmd += " -DaltDeploymentRepository=runtimes-artifacts::default::${params.MAVEN_DEPLOY_REPOSITORY}"
+    }
+    dir(directory) {
+        maven.runMavenWithSubmarineSettings(deployCmd, true)
+    }
+}
+
