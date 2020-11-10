@@ -35,6 +35,9 @@ pipeline {
         // Bot author information. Set as params for easy testing.
         string(name: 'GIT_AUTHOR_BOT', defaultValue: 'bsig-gh-bot', description: 'From which author should the PR be created ?')
         string(name: 'BOT_CREDENTIALS_ID', defaultValue: 'bsig-gh-bot', description: 'Credentials for PR creation')
+
+        // PR parameter to be filled out by GitHub Pull Request Builder for PR checks
+        string(name: 'PR_TARGET_BRANCH', defaultValue: '', description: 'What is the target branch of the PR? Will be automatically filled out by GitHub Pull Request Builder.')
     }
 
     environment {
@@ -192,8 +195,17 @@ void saveReports(boolean allowEmpty=false){
 void checkoutRepo(String repo, String dirName=repo) {
     dir(dirName) {
         deleteDir()
-        checkout(githubscm.resolveRepository(repo, getGitAuthor(), getBuildBranch(), false))
+        githubscm.checkoutIfExists(repo, getGitAuthor(), getBuildBranch(), 'kiegroup', getDefaultBranch(repo), true)
     }
+}
+
+String getDefaultBranch(String repo) {
+    // if not triggered by PR
+    if (!params.PR_TARGET_BRANCH) {
+        return 'master'
+    }
+    def repositoryScm = githubscm.getRepositoryScm(repo, 'kiegroup', params.PR_TARGET_BRANCH)
+    return repositoryScm ? params.PR_TARGET_BRANCH : 'master'
 }
 
 void prepareForPR(String repo) {
