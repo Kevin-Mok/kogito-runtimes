@@ -27,6 +27,7 @@ pipeline {
 
         // Deploy information
         string(name: 'MAVEN_DEPLOY_REPOSITORY', defaultValue: '', description: 'Specify a Maven repository to deploy the artifacts.')
+        string(name: 'MAVEN_DEPLOY_CREDS_ID', defaultValue: '', description: 'Credentials for Maven repository to deploy the artifacts.')
 
         // Release information
         booleanParam(name: 'RELEASE', defaultValue: false, description: 'Is this build for a release?')
@@ -42,6 +43,7 @@ pipeline {
 
     environment {
         MAVEN_OPTS = '-Xms1024m -Xmx4g'
+        LOCAL_DEPLOY_DIR = "$WORKSPACE/deploy"
 
         BOT_BRANCH_HASH = "${util.generateHash(10)}"
     }
@@ -145,8 +147,24 @@ pipeline {
         }
         stage('Deploy artifacts') {
             steps {
-                mavenDeploy('kogito-runtimes')
-                mavenDeploy('kogito-apps')
+                script {
+                    if (params.MAVEN_DEPLOY_REPOSITORY && params.MAVEN_DEPLOY_CREDS_ID) {
+                        mavenLocalDeploy('kogito-runtimes')
+                        mavenLocalDeploy('kogito-apps')
+                        withCredentials([usernameColonPassword(credentialsId: params.MAVEN_DEPLOY_CREDS_ID, variable: 'kieUnpack')]) {
+                            dir(env.LOCAL_DEPLOY_DIR) {
+                                // unpack zip to QA Nexus
+                                sh """
+                                zip -r kiegroup .
+                                curl --silent --upload-file kiegroup.zip -u ${kieUnpack} -v ${getMavenRepoZipUrl()}
+                                """
+                            }
+                        }
+                    } else {
+                        mavenDeploy('kogito-runtimes')
+                        mavenDeploy('kogito-apps')
+                    }
+                }
             }
         }
         stage('Create PR'){
@@ -283,7 +301,11 @@ void mavenCleanInstall(String directory, boolean skipTests = false, List profile
 }
 
 void mavenDeploy(String directory) {
-    extraArgs = params.MAVEN_DEPLOY_REPOSITORY != '' ? "-DaltDeploymentRepository=runtimes-artifacts::default::${params.MAVEN_DEPLOY_REPOSITORY} -Denforcer.skip=true" : ''
+    runMaven('clean deploy', directory, true, [])
+}
+
+void mavenLocalDeploy(String directory) {
+    extraArgs = "-DaltDeploymentRepository=local::default::file://${env.LOCAL_DEPLOY_DIR} -Denforcer.skip=true"
     runMaven('clean deploy', directory, true, [], extraArgs)
 }
 
