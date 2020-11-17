@@ -1,3 +1,4 @@
+import org.jenkinsci.plugins.workflow.libs.Library
 @Library('jenkins-pipeline-shared-libraries')_
 
 deployProperties = [:]
@@ -307,6 +308,13 @@ void mavenDeploy(String directory) {
 void mavenLocalDeploy(String directory) {
     extraArgs = "-DaltDeploymentRepository=local::default::file://${env.LOCAL_DEPLOY_DIR} -Denforcer.skip=true"
     runMaven('clean deploy', directory, true, [], extraArgs)
+}
+
+String getMavenRepoZipUrl() {
+    String repoUrl = params.MAVEN_DEPLOY_REPOSITORY
+    // ensure URL has trailing slash
+    repoUrl += (!repoUrl.endsWith('/')) ? '/' : ''
+    return repoUrl.replaceAll('/content/', '/service/local/') + 'content-compressed'
 }
 
 void runMaven(String command, String directory, boolean skipTests = false, List profiles = [], String extraArgs = '') {
