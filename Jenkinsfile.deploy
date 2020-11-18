@@ -311,10 +311,7 @@ void mavenLocalDeploy(String directory) {
 }
 
 String getMavenRepoZipUrl() {
-    String repoUrl = params.MAVEN_DEPLOY_REPOSITORY
-    // ensure URL has trailing slash
-    repoUrl += (!repoUrl.endsWith('/')) ? '/' : ''
-    return repoUrl.replaceAll('/content/', '/service/local/') + 'content-compressed'
+     return "${params.MAVEN_DEPLOY_REPOSITORY.replaceAll('/content/', '/service/local/').replaceFirst('/*$', '')}/content-compressed"
 }
 
 void runMaven(String command, String directory, boolean skipTests = false, List profiles = [], String extraArgs = '') {

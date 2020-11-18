@@ -54,4 +54,13 @@ class JenkinsfileDeploy extends JenkinsPipelineSpecification {
 		then:
             value == 'http://nexus-url.com/nexus/service/local/repositories/test-repo/content-compressed'
 	}
+
+	def '[Jenkinsfile.deploy] getMavenRepoZipUrl: multiple trailing slashes' () {
+		setup:
+            Jenkinsfile.getBinding().setVariable('params', ['MAVEN_DEPLOY_REPOSITORY' : 'http://nexus-url.com/nexus/content/repositories/test-repo///'])
+		when:
+			def value = Jenkinsfile.getMavenRepoZipUrl()
+		then:
+            value == 'http://nexus-url.com/nexus/service/local/repositories/test-repo/content-compressed'
+	}
 }
