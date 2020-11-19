@@ -22,6 +22,7 @@ pipeline {
         // Git information
         string(name: 'BUILD_BRANCH_NAME', defaultValue: 'master', description: 'Which branch to build? Set if you are not on a multibranch pipeline.')
         string(name: 'GIT_AUTHOR', defaultValue: 'kiegroup', description: 'Which Git author repository ?')
+        string(name: 'PR_TARGET_BRANCH', defaultValue: '', description: 'What is the target branch of the PR? Should be filled out by PR check pipeline.')
 
         // Build&test information
         booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip tests')
@@ -38,8 +39,6 @@ pipeline {
         string(name: 'GIT_AUTHOR_BOT', defaultValue: 'bsig-gh-bot', description: 'From which author should the PR be created ?')
         string(name: 'BOT_CREDENTIALS_ID', defaultValue: 'bsig-gh-bot', description: 'Credentials for PR creation')
 
-        // PR parameter to be filled out by GitHub Pull Request Builder for PR checks
-        string(name: 'PR_TARGET_BRANCH', defaultValue: '', description: 'What is the target branch of the PR? Will be automatically filled out by GitHub Pull Request Builder.')
     }
 
     environment {
