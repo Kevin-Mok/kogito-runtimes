@@ -13,7 +13,7 @@ pipeline {
     }
     
     options {
-        buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '10')
+        buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '5')
     }
 
     parameters {
@@ -22,7 +22,6 @@ pipeline {
         // Git information
         string(name: 'BUILD_BRANCH_NAME', defaultValue: 'master', description: 'Which branch to build? Set if you are not on a multibranch pipeline.')
         string(name: 'GIT_AUTHOR', defaultValue: 'kiegroup', description: 'Which Git author repository ?')
-        string(name: 'PR_TARGET_BRANCH', defaultValue: '', description: 'What is the target branch of the PR? Should be filled out by PR check pipeline.')
 
         // Build&test information
         booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip tests')
@@ -61,6 +60,8 @@ pipeline {
                     if (isRelease()) {
                         assert getProjectVersion() != ''
                     }
+
+                    checkoutRepo('kogito-runtimes')
                 }
             }
             post {
@@ -74,29 +75,20 @@ pipeline {
                 }
             }
         }
-        stage('Clone repositories') { 
-            steps {
-                checkoutRepo('kogito-runtimes')
-                checkoutRepo('kogito-apps')
-            }
-        }
         stage('Prepare for PR'){
             when {
                 expression { return isRelease() }
             }
             steps {
                 prepareForPR('kogito-runtimes')
-                prepareForPR('kogito-apps')
             }
         }
-        stage('Setup Maven release config'){
-            when {
-                expression { return isRelease() }
-            }
+        stage('Setup Maven config'){
             steps {
-                echo 'Setup Maven release config'
-                configFileProvider([configFile(fileId: maven.getSubmarineSettingsXmlId(), targetLocation: 'maven-settings.xml', variable: 'MAVEN_SETTINGS_FILE')]){
-                    sh "echo '\n-B -s ${MAVEN_SETTINGS_FILE}' | tee -a kogito-{runtimes,apps}/.mvn/maven.config"
+                dir('kogito-runtimes'){
+                    configFileProvider([configFile(fileId: maven.getSubmarineSettingsXmlId(), targetLocation: 'maven-settings.xml', variable: 'MAVEN_SETTINGS_FILE')]){
+                        sh "echo '\n-B -s ${MAVEN_SETTINGS_FILE}' | tee -a .mvn/maven.config"
+                    }
                 }
             }
         }
@@ -135,22 +127,11 @@ pipeline {
                 }
             }
         }
-        stage('Build kogito-apps') {
-            steps {
-                mavenCleanInstall('kogito-apps', params.SKIP_TESTS)
-            }
-            post {
-                always {
-                    saveReports(params.SKIP_TESTS)
-                }
-            }
-        }
         stage('Deploy artifacts') {
             steps {
                 script {
                     if (params.MAVEN_DEPLOY_REPOSITORY && params.MAVEN_DEPLOY_CREDS_ID) {
                         mavenLocalDeploy('kogito-runtimes')
-                        mavenLocalDeploy('kogito-apps')
                         withCredentials([usernameColonPassword(credentialsId: params.MAVEN_DEPLOY_CREDS_ID, variable: 'kieUnpack')]) {
                             dir(env.LOCAL_DEPLOY_DIR) {
                                 // unpack zip to QA Nexus
@@ -162,7 +143,6 @@ pipeline {
                         }
                     } else {
                         mavenDeploy('kogito-runtimes')
-                        mavenDeploy('kogito-apps')
                     }
                 }
             }
@@ -173,7 +153,6 @@ pipeline {
             }
             steps {
                 commitAndCreatePR('kogito-runtimes')
-                commitAndCreatePR('kogito-apps')
             }
             post {
                 success {
@@ -183,12 +162,6 @@ pipeline {
                         setDeployPropertyIfNeeded('kogito-runtimes.pr.source.ref', getBotBranch())
                         setDeployPropertyIfNeeded('kogito-runtimes.pr.target.uri', "https://github.com/${getGitAuthor()}/kogito-runtimes")
                         setDeployPropertyIfNeeded('kogito-runtimes.pr.target.ref', getBuildBranch())
-
-                        // Apps
-                        setDeployPropertyIfNeeded('kogito-apps.pr.source.uri', "https://github.com/${getBotAuthor()}/kogito-apps")
-                        setDeployPropertyIfNeeded('kogito-apps.pr.source.ref', getBotBranch())
-                        setDeployPropertyIfNeeded('kogito-apps.pr.target.uri', "https://github.com/${getGitAuthor()}/kogito-apps")
-                        setDeployPropertyIfNeeded('kogito-apps.pr.target.ref', getBuildBranch())
                     }
                 }
             }
@@ -213,17 +186,8 @@ void saveReports(boolean allowEmpty=false){
 void checkoutRepo(String repo, String dirName=repo) {
     dir(dirName) {
         deleteDir()
-        githubscm.checkoutIfExists(repo, getGitAuthor(), getBuildBranch(), 'kiegroup', getDefaultBranch(repo), true)
+        checkout(githubscm.resolveRepository(repo, getGitAuthor(), getBuildBranch(), false))
     }
-}
-
-String getDefaultBranch(String repo) {
-    // if not triggered by PR
-    if (!params.PR_TARGET_BRANCH) {
-        return 'master'
-    }
-    def repositoryScm = githubscm.getRepositoryScm(repo, 'kiegroup', params.PR_TARGET_BRANCH)
-    return repositoryScm ? params.PR_TARGET_BRANCH : 'master'
 }
 
 void prepareForPR(String repo) {
@@ -301,6 +265,7 @@ void mavenCleanInstall(String directory, boolean skipTests = false, List profile
 }
 
 void mavenDeploy(String directory) {
+    extraArgs = params.MAVEN_DEPLOY_REPOSITORY != '' ? "-DaltDeploymentRepository=runtimes-artifacts::default::${params.MAVEN_DEPLOY_REPOSITORY} -Denforcer.skip=true" : ''
     runMaven('clean deploy', directory, true, [])
 }
 
