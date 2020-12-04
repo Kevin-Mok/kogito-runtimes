@@ -1,84 +1,66 @@
 import com.homeaway.devtools.jenkins.testing.JenkinsPipelineSpecification
 
 class JenkinsfileDeploy extends JenkinsPipelineSpecification {
+	def Jenkinsfile = null
 
-    def Jenkinsfile = null
-
-    void setup() {
+    def setup() {
         Jenkinsfile = loadPipelineScriptForTest('Jenkinsfile.deploy')
+        explicitlyMockPipelineVariable('githubscm')
     }
 
-    def '[Jenkinsfile.deploy] isRelease param true' () {
-				setup:
-        Jenkinsfile.getBinding().setVariable('params', ['RELEASE' : true])
-				when:
-        def output = Jenkinsfile.isRelease()
-				then:
-        output
-    }
+	def '[Jenkinsfile.deploy] getDefaultBranch: no PR_TARGET_BRANCH' () {
+		setup:
+            Jenkinsfile.getBinding().setVariable('params', ['PR_TARGET_BRANCH' : ''])
+		when:
+			def branch = Jenkinsfile.getDefaultBranch('repo')
+		then:
+            branch == 'master'
+	}
 
-    def '[Jenkinsfile.deploy] isRelease param false' () {
-				setup:
-        Jenkinsfile.getBinding().setVariable('params', ['RELEASE' : false])
-				when:
-        def output = Jenkinsfile.isRelease()
-				then:
-        !output
-    }
+	def '[Jenkinsfile.deploy] getDefaultBranch: PR branch exists' () {
+		setup:
+            Jenkinsfile.getBinding().setVariable('params', ['PR_TARGET_BRANCH' : 'target-branch'])
+            getPipelineMock('githubscm.getRepositoryScm')('repo', 'kiegroup', 'target-branch') >> 'branch'
+		when:
+			def branch = Jenkinsfile.getDefaultBranch('repo')
+		then:
+            branch == 'target-branch'
+	}
 
-    def '[Jenkinsfile.deploy] getGitAuthor with param' () {
-        setup:
-        Jenkinsfile.getBinding().setVariable('params', ['GIT_AUTHOR' : 'AUTHOR'])
-        when:
-        def output = Jenkinsfile.getGitAuthor()
-        then:
-        output == 'AUTHOR'
-    }
+	def '[Jenkinsfile.deploy] getDefaultBranch: PR branch doesn\'t exist' () {
+		setup:
+            Jenkinsfile.getBinding().setVariable('params', ['PR_TARGET_BRANCH' : 'target-branch'])
+            getPipelineMock('githubscm.getRepositoryScm')('repo', 'kiegroup', 'target-branch') >> null
+		when:
+			def branch = Jenkinsfile.getDefaultBranch('repo')
+		then:
+            branch == 'master'
+	}
 
-    def '[Jenkinsfile.deploy] getBuildBranch with param' () {
-        setup:
-        Jenkinsfile.getBinding().setVariable('params', ['BUILD_BRANCH_NAME' : 'BRANCH'])
-        when:
-        def output = Jenkinsfile.getBuildBranch()
-        then:
-        output == 'BRANCH'
-    }
+	def '[Jenkinsfile.deploy] getMavenRepoZipUrl: no trailing slash' () {
+		setup:
+            Jenkinsfile.getBinding().setVariable('params', ['MAVEN_DEPLOY_REPOSITORY' : 'http://nexus-url.com/nexus/content/repositories/test-repo'])
+		when:
+			def value = Jenkinsfile.getMavenRepoZipUrl()
+		then:
+            value == 'http://nexus-url.com/nexus/service/local/repositories/test-repo/content-compressed'
+	}
 
-    def '[Jenkinsfile.deploy] getProjectVersion with param' () {
-        setup:
-        Jenkinsfile.getBinding().setVariable('params', ['PROJECT_VERSION' : 'VERSION'])
-        when:
-        def output = Jenkinsfile.getProjectVersion()
-        then:
-        output == 'VERSION'
-    }
+	def '[Jenkinsfile.deploy] getMavenRepoZipUrl: trailing slash' () {
+		setup:
+            Jenkinsfile.getBinding().setVariable('params', ['MAVEN_DEPLOY_REPOSITORY' : 'http://nexus-url.com/nexus/content/repositories/test-repo/'])
+		when:
+			def value = Jenkinsfile.getMavenRepoZipUrl()
+		then:
+            value == 'http://nexus-url.com/nexus/service/local/repositories/test-repo/content-compressed'
+	}
 
-    def '[Jenkinsfile.deploy] getBotBranch with version param' () {
-        setup:
-        Jenkinsfile.getBinding().setVariable('env', ['BOT_BRANCH_HASH' : 'HASH'])
-        Jenkinsfile.getBinding().setVariable('params', ['PROJECT_VERSION' : 'VERSION'])
-        when:
-        def output = Jenkinsfile.getBotBranch()
-        then:
-        output == 'VERSION-HASH'
-    }
-
-    def '[Jenkinsfile.deploy] getBotAuthor with param' () {
-        setup:
-        Jenkinsfile.getBinding().setVariable('params', ['GIT_AUTHOR_BOT' : 'AUTHOR_BOT'])
-        when:
-        def output = Jenkinsfile.getBotAuthor()
-        then:
-        output == 'AUTHOR_BOT'
-    }
-
-    def '[Jenkinsfile.deploy] getBotAuthorCredsID with param' () {
-        setup:
-        Jenkinsfile.getBinding().setVariable('params', ['BOT_CREDENTIALS_ID' : 'CREDS_BOT_ID'])
-        when:
-        def output = Jenkinsfile.getBotAuthorCredsID()
-        then:
-        output == 'CREDS_BOT_ID'
-    }
-
+	def '[Jenkinsfile.deploy] getMavenRepoZipUrl: multiple trailing slashes' () {
+		setup:
+            Jenkinsfile.getBinding().setVariable('params', ['MAVEN_DEPLOY_REPOSITORY' : 'http://nexus-url.com/nexus/content/repositories/test-repo///'])
+		when:
+			def value = Jenkinsfile.getMavenRepoZipUrl()
+		then:
+            value == 'http://nexus-url.com/nexus/service/local/repositories/test-repo/content-compressed'
+	}
 }
