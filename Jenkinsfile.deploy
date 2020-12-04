@@ -113,14 +113,14 @@ pipeline {
             steps {
                 script {
                     // Set version
-                    maven.mvnVersionsSet(getRuntimesMavenCommand(), getProjectVersion())
+                    maven.mvnVersionsSet(getMavenCommand(), getProjectVersion())
                 }
             }
         }
         stage('Build kogito-runtimes') {
             steps {
                 script {
-                    getRuntimesMavenCommand().skipTests(params.SKIP_TESTS).run('clean install')
+                    getMavenCommand().skipTests(params.SKIP_TESTS).run('clean install')
                 }
             }
             post {
@@ -132,16 +132,17 @@ pipeline {
         stage('Deploy artifacts') {
             steps {
                 script {
-                    // Usually `params.MAVEN_DEPLOY_REPOSITORY` is used for testing purpose
                     if (params.MAVEN_DEPLOY_REPOSITORY && params.MAVEN_DEPLOY_CREDS_ID) {
-                        runMavenDeployLocally(getRuntimesMavenCommand(), 'runtimes')
-                        pushLocalArtifacts('runtimes')
-                    } else if(!isRelease() || params.MAVEN_DEPLOY_REPOSITORY) {
-                        runMavenDeploy(getRuntimesMavenCommand())
+                        // Deploy to specific repository with credentials
+                        runMavenDeployLocally(getMavenCommand())
+                        pushLocalArtifacts()
+                    } else if(!isRelease() || params.MAVEN_DEPLOY_REPOSITORY){
+                        // Normal deploy
+                        runMavenDeploy(getMavenCommand())
                     } else {
-                         // Deploy locally and then to staging
-                        runMavenDeployLocally(getRuntimesMavenCommand(), 'runtimes')
-                        runMavenStage(getRuntimesMavenCommand(), 'runtimes')
+                        // Deploy locally and then to staging
+                        runMavenDeployLocally(getMavenCommand())
+                        runMavenStage(getMavenCommand())
                     }
                 }
             }
@@ -241,12 +242,11 @@ void setDeployPropertyIfNeeded(String key, def value){
     }
 }
 
-MavenCommand getMavenDefaultCommand(){
-    return new MavenCommand(this, ['-fae']).withSettingsXmlId(params.MAVEN_SETTINGS_CONFIG_FILE_ID)
-}
-
-MavenCommand getRuntimesMavenCommand(){
-    return getMavenDefaultCommand().inDirectory('kogito-runtimes').withProperty('full')
+MavenCommand getMavenCommand(){
+    return new MavenCommand(this, ['-fae'])
+                .withSettingsXmlId(params.MAVEN_SETTINGS_CONFIG_FILE_ID)
+                .inDirectory('kogito-runtimes')
+                .withProperty('full')
 }
 
 void runMavenDeploy(MavenCommand mvnCmd){
@@ -263,28 +263,28 @@ String getMavenRepoZipUrl() {
      return "${params.MAVEN_DEPLOY_REPOSITORY.replaceAll('/content/', '/service/local/').replaceFirst('/*$', '')}/content-compressed"
 }
 
-void runMavenDeployLocally(MavenCommand mvnCmd, String localDeployId) {
+void runMavenDeployLocally(MavenCommand mvnCmd) {
     mvnCmd.clone()
         .skipTests(true)
-        .withLocalDeployFolder(getLocalDeploymentFolder(localDeployId))
+        .withLocalDeployFolder(getLocalDeploymentFolder())
         .run('clean deploy')
 }
 
-void pushLocalArtifacts(String localDeployId) {
+void pushLocalArtifacts() {
     withCredentials([usernameColonPassword(credentialsId: params.MAVEN_DEPLOY_CREDS_ID, variable: 'kieUnpack')]) {
-        dir(getLocalDeploymentFolder(localDeployId)) {
+        dir(getLocalDeploymentFolder()) {
             // unpack zip to QA Nexus
             sh """
-            zip -r ${localDeployId} .
-            curl --silent --upload-file ${localDeployId}.zip -u ${kieUnpack} -v ${getMavenRepoZipUrl()}
+            zip -r runtimes .
+            curl --silent --upload-file runtimes.zip -u ${kieUnpack} -v ${getMavenRepoZipUrl()}
             """
         }
     }
 }
 
-void runMavenStage(MavenCommand mvnCmd, String localDeployId) {
+void runMavenStage(MavenCommand mvnCmd) {
     MavenStagingHelper stagingHelper = getStagingHelper(mvnCmd)
-    deployProperties.putAll(stagingHelper.stageLocalArtifacts(params.NEXUS_STAGING_PROFILE_ID, getLocalDeploymentFolder(localDeployId)))
+    deployProperties.putAll(stagingHelper.stageLocalArtifacts(params.NEXUS_STAGING_PROFILE_ID, getLocalDeploymentFolder()))
     stagingHelper.promoteStagingRepository(params.NEXUS_BUILD_PROMOTION_PROFILE_ID)
 }
 
@@ -294,6 +294,6 @@ MavenStagingHelper getStagingHelper(MavenCommand mvnCmd) {
         .withNexusReleaseRepositoryId(params.NEXUS_RELEASE_REPOSITORY_ID)
 }
 
-String getLocalDeploymentFolder(String localDeployId){
-    return "${env.MAVEN_DEPLOY_LOCAL_DIR}/${localDeployId}"
+String getLocalDeploymentFolder(){
+    return "${env.MAVEN_DEPLOY_LOCAL_DIR}/kogito-runtimes"
 }
