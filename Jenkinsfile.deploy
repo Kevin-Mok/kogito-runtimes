@@ -52,6 +52,8 @@ pipeline {
     }
 
     environment {
+        REPO_NAME = 'kogito-runtimes'
+
         MAVEN_OPTS = '-Xms1024m -Xmx4g'
 
         BOT_BRANCH_HASH = "${util.generateHash(10)}"
@@ -74,7 +76,7 @@ pipeline {
                         assert getProjectVersion() != ''
                     }
 
-                    checkoutRepo('kogito-runtimes')
+                    checkoutRepo(getRepoName())
                 }
             }
             post {
@@ -93,7 +95,7 @@ pipeline {
                 expression { return isRelease() }
             }
             steps {
-                prepareForPR('kogito-runtimes')
+                prepareForPR(getRepoName())
             }
         }
         stage('Setup Maven config') {
@@ -102,7 +104,7 @@ pipeline {
                     MavenCommand defaultMvnCmd = new MavenCommand(this, ['-fae'])
                                                     .withSettingsXmlId(params.MAVEN_SETTINGS_CONFIG_FILE_ID)
 
-                    defaultRuntimesMvnCmd = defaultMvnCmd.clone().inDirectory('kogito-runtimes').withProperty('full')
+                    defaultRuntimesMvnCmd = defaultMvnCmd.clone().inDirectory(getRepoName()).withProperty('full')
                 }
             }
         }
@@ -152,16 +154,16 @@ pipeline {
                 expression { return isRelease() }
             }
             steps {
-                commitAndCreatePR('kogito-runtimes')
+                commitAndCreatePR(getRepoName())
             }
             post {
                 success {
                     script {
                         // Runtimes
-                        setDeployPropertyIfNeeded('kogito-runtimes.pr.source.uri', "https://github.com/${getBotAuthor()}/kogito-runtimes")
-                        setDeployPropertyIfNeeded('kogito-runtimes.pr.source.ref', getBotBranch())
-                        setDeployPropertyIfNeeded('kogito-runtimes.pr.target.uri', "https://github.com/${getGitAuthor()}/kogito-runtimes")
-                        setDeployPropertyIfNeeded('kogito-runtimes.pr.target.ref', getBuildBranch())
+                        setDeployPropertyIfNeeded("${getRepoName()}.pr.source.uri", "https://github.com/${getBotAuthor()}/${getRepoName()}")
+                        setDeployPropertyIfNeeded("${getRepoName()}.pr.source.ref", getBotBranch())
+                        setDeployPropertyIfNeeded("${getRepoName()}.pr.target.uri", "https://github.com/${getGitAuthor()}/${getRepoName()}")
+                        setDeployPropertyIfNeeded("${getRepoName()}.pr.target.ref", getBuildBranch())
                     }
                 }
             }
@@ -212,6 +214,10 @@ boolean isRelease() {
     return params.RELEASE
 }
 
+String getRepoName(){
+    return env.REPO_NAME
+}
+
 String getGitAuthor(){
     return params.GIT_AUTHOR
 }
@@ -242,10 +248,13 @@ void setDeployPropertyIfNeeded(String key, def value){
     }
 }
 
-MavenCommand getMavenCommand(){
+MavenCommand getMavenCommand(String directory = ''){
+    if(!directory) {
+        directory = getRepoName()
+    }
     return new MavenCommand(this, ['-fae'])
                 .withSettingsXmlId(params.MAVEN_SETTINGS_CONFIG_FILE_ID)
-                .inDirectory('kogito-runtimes')
+                .inDirectory(directory)
                 .withProperty('full')
 }
 
@@ -275,8 +284,8 @@ void pushLocalArtifacts() {
         dir(getLocalDeploymentFolder()) {
             // unpack zip to QA Nexus
             sh """
-            zip -r runtimes .
-            curl --silent --upload-file runtimes.zip -u ${kieUnpack} -v ${getMavenRepoZipUrl()}
+            zip -r ${getRepoName()} .
+            curl --silent --upload-file ${getRepoName()}.zip -u ${kieUnpack} -v ${getMavenRepoZipUrl()}
             """
         }
     }
@@ -295,5 +304,5 @@ MavenStagingHelper getStagingHelper(MavenCommand mvnCmd) {
 }
 
 String getLocalDeploymentFolder(){
-    return "${env.MAVEN_DEPLOY_LOCAL_DIR}/kogito-runtimes"
+    return "${env.MAVEN_DEPLOY_LOCAL_DIR}/${getRepoName()}"
 }
