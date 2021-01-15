@@ -34,7 +34,7 @@ pipeline {
 
         // Deploy information
         string(name: 'MAVEN_DEPLOY_REPOSITORY', defaultValue: '', description: 'Specify a Maven repository to deploy the artifacts.')
-        string(name: 'MAVEN_DEPLOY_CREDS_ID', defaultValue: '', description: 'Credentials for Maven repository to deploy the artifacts.')
+        string(name: 'MAVEN_REPO_CREDS_ID', defaultValue: '', description: 'Credentials for Maven repository to deploy the artifacts.')
 
         // Release information
         booleanParam(name: 'RELEASE', defaultValue: false, description: 'Is this build for a release?')
@@ -125,11 +125,10 @@ pipeline {
             steps {
                 script {
                     // Usually `params.MAVEN_DEPLOY_REPOSITORY` is used for testing purpose
-                    if (params.MAVEN_DEPLOY_REPOSITORY && params.MAVEN_DEPLOY_CREDS_ID) {
+                    if (params.MAVEN_DEPLOY_REPOSITORY && params.MAVEN_REPO_CREDS_ID) {
                         // Deploy to specific repository with credentials
                         runMavenDeployLocally(getMavenCommand())
-                        /* pushLocalArtifacts() */
-                        maven.uploadLocalArtifacts(params.MAVEN_DEPLOY_CREDS_ID, getLocalDeploymentFolder(), getMavenRepoZipUrl())
+                        maven.uploadLocalArtifacts(params.MAVEN_REPO_CREDS_ID, getLocalDeploymentFolder(), getMavenRepoZipUrl())
                     } else if(!isRelease() || params.MAVEN_DEPLOY_REPOSITORY){
                         // Normal deploy
                         runMavenDeploy(getMavenCommand())
@@ -268,18 +267,6 @@ void runMavenDeployLocally(MavenCommand mvnCmd) {
         .skipTests(true)
         .withLocalDeployFolder(getLocalDeploymentFolder())
         .run('clean deploy')
-}
-
-void pushLocalArtifacts() {
-    withCredentials([usernameColonPassword(credentialsId: params.MAVEN_DEPLOY_CREDS_ID, variable: 'kieUnpack')]) {
-        dir(getLocalDeploymentFolder()) {
-            // unpack zip to QA Nexus
-            sh """
-            zip -r ${getRepoName()} .
-            curl --silent --upload-file ${getRepoName()}.zip -u ${kieUnpack} -v ${getMavenRepoZipUrl()}
-            """
-        }
-    }
 }
 
 void runMavenStage(MavenCommand mvnCmd) {
